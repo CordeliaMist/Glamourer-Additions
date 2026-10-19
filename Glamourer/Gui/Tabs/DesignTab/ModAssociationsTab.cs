@@ -108,8 +108,7 @@ public sealed class ModAssociationsTab(PenumbraSubscriber penumbra, DesignFileSy
         table.SetupColumn("Mod Name"u8,  TableColumnFlags.WidthStretch);
         table.SetupColumn("State"u8,     TableColumnFlags.WidthFixed, 85 * Im.Style.GlobalScale);
         table.SetupColumn("Priority"u8,  TableColumnFlags.WidthFixed, Im.Font.CalculateSize("Priority"u8).X + Im.Style.FrameHeightWithSpacing);
-        table.SetupColumn("##Options"u8, TableColumnFlags.WidthFixed,
-            Im.Font.CalculateSize("Applym"u8).X * Im.Style.FrameHeight + Im.Style.ItemInnerSpacing.X);
+        table.SetupColumn("##Options"u8, TableColumnFlags.WidthFixed, Im.Font.CalculateSize("Applym"u8).X + Im.Style.FrameHeight + Im.Style.ItemInnerSpacing.X);
         table.HeaderRow();
 
         ModIdentifier?                                   removedMod = null;
@@ -202,7 +201,7 @@ public sealed class ModAssociationsTab(PenumbraSubscriber penumbra, DesignFileSy
             });
         table.NextColumn();
         var modIndex = !penumbra.Available ? -1 : penumbra.Mods.IndexByName(mod);
-        if (ImEx.Button("Apply"u8, Im.ContentRegion.Available with { Y = 0 }, StringU8.Empty, modIndex < 0))
+        if (ImEx.Button("Apply"u8, Vector2.Zero, StringU8.Empty, modIndex < 0))
         {
             var text = penumbra.SetMod(mod, settings, StateSource.Manual, false);
             if (text.Length > 0)

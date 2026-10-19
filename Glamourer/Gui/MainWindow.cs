@@ -68,12 +68,15 @@ public sealed class MainWindow : Window, IDisposable
             if (_penumbra.CurrentMajorVersion is 0)
                 DrawProblemWindow(
                     "Could not attach to Penumbra. Please make sure Penumbra is installed and running.\n\nPenumbra is required for Glamourer to work properly."u8);
-            else if (_penumbra.MatchesVersions)
+            else if (_penumbra is { MatchesVersions: true, InitializationFailure: not AdapterVersionMismatchException })
                 DrawProblemWindow(
                     $"You are currently not attached to Penumbra, seemingly by manually detaching from it.\n\nPenumbra's last API Version was {_penumbra.CurrentMajorVersion}.{_penumbra.CurrentMinorVersion}.\n\nPenumbra is required for Glamourer to work properly.");
-            else
+            else if (!_penumbra.MatchesVersions)
                 DrawProblemWindow(
                     $"Attaching to Penumbra failed.\n\nPenumbra's API Version was {_penumbra.CurrentMajorVersion}.{_penumbra.CurrentMinorVersion}, but Glamourer requires a version of {_penumbra.RequiredMajorVersion}.{_penumbra.RequiredMinorVersion}, where the major version has to match exactly, and the minor version has to be greater or equal.\nYou may need to update Penumbra or enable Testing Builds for it for this version of Glamourer.\n\nPenumbra is required for Glamourer to work properly.");
+            else if (_penumbra.InitializationFailure is AdapterVersionMismatchException ex)
+                DrawProblemWindow(
+                    $"Attaching to Penumbra failed.\n\nPenumbras API has a {ex.AdapterName} of version {ex.ActualMajor}.{ex.ActualMinor}, but version {ex.RequiredMajor}.{ex.MinimumMinor}+ is required.\nYou may need to update Penumbra or enable Testing Builds for it for this version of Glamourer.\n\nPenumbra is required for Glamourer to work properly.");
         }
         else
         {

@@ -8,7 +8,7 @@ using Luna;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Penumbra.GameData.Enums;
-using Penumbra.GameData.Files.MaterialStructs;
+using Penumbra.GameData.Files.Materials;
 using Penumbra.GameData.Files.StainMapStructs;
 using Penumbra.GameData.Structs;
 using JsonSerializer = Newtonsoft.Json.JsonSerializer;
@@ -83,12 +83,12 @@ public struct ColorRow(
         };
 
     public static ColorRow From(in LegacyDyePack row)
-        => new ColorRow(Root((Vector3)row.DiffuseColor), Root((Vector3)row.SpecularColor), Root((Vector3)row.EmissiveColor),
+        => new(Root((Vector3)row.DiffuseColor), Root((Vector3)row.SpecularColor), Root((Vector3)row.EmissiveColor),
             (float)row.SpecularMask, (float)row.Shininess, float.NaN, float.NaN, float.NaN, float.NaN, float.NaN, float.NaN, float.NaN,
             float.NaN, ushort.MaxValue);
 
     public static ColorRow From(in DyePack row)
-        => new ColorRow(Root((Vector3)row.DiffuseColor), Root((Vector3)row.SpecularColor), Root((Vector3)row.EmissiveColor),
+        => new(Root((Vector3)row.DiffuseColor), Root((Vector3)row.SpecularColor), Root((Vector3)row.EmissiveColor),
             float.NaN, float.NaN, (float)row.Roughness, (float)row.Metalness, (float)row.SheenRate, (float)row.SheenTintRate,
             (float)row.SheenAperture, (float)row.Exposure, (float)row.Anisotropy, (float)row.SphereMapMask, row.SphereMapIndex);
 

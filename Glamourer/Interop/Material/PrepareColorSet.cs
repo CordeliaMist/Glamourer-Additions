@@ -5,7 +5,7 @@ using FFXIVClientStructs.FFXIV.Client.System.Resource.Handle;
 using Luna;
 using Penumbra.GameData;
 using Penumbra.GameData.Enums;
-using Penumbra.GameData.Files.MaterialStructs;
+using Penumbra.GameData.Files.Materials;
 using Penumbra.GameData.Interop;
 using Penumbra.GameData.Structs;
 
