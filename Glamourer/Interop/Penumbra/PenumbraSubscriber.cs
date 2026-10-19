@@ -364,7 +364,7 @@ public sealed class PenumbraSubscriber : BasePenumbraSubscriber, IApiService
     {
         if (!GameState.Reconnect(PluginInterface, 1))
             throw new Exception("Unable to connect to GameState adapter.");
-        if (!Mods.Reconnect(PluginInterface, 1))
+        if (!Mods.Reconnect(PluginInterface, 1, 1))
             throw new Exception("Unable to connect to ModManager adapter.");
         if (!Collections.Reconnect(PluginInterface, 1))
             throw new Exception("Unable to connect to CollectionManager adapter.");

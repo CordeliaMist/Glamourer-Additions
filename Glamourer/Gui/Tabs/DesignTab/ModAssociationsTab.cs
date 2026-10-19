@@ -1,4 +1,5 @@
-﻿using Dalamud.Interface.ImGuiNotification;
+﻿global using ModObjectIdentifier = (System.Guid Identifier, string? Name);
+using Dalamud.Interface.ImGuiNotification;
 using Glamourer.Config;
 using Glamourer.Designs;
 using Glamourer.Interop.Penumbra;
@@ -15,6 +16,11 @@ public sealed class ModAssociationsTab(PenumbraSubscriber penumbra, DesignFileSy
 {
     private readonly ModCombo                              _modCombo = new(penumbra, fileSystem);
     private          (ModIdentifier, SettingPresetData)[]? _copy;
+
+    private string _groupNameInput        = string.Empty;
+    private string _optionNameInput       = string.Empty;
+    private Guid   _groupIdentifierInput  = Guid.Empty;
+    private Guid   _optionIdentifierInput = Guid.Empty;
 
     private Design Selection
         => (Design)fileSystem.Selection.Selection!.Value;
@@ -102,7 +108,8 @@ public sealed class ModAssociationsTab(PenumbraSubscriber penumbra, DesignFileSy
         table.SetupColumn("Mod Name"u8,  TableColumnFlags.WidthStretch);
         table.SetupColumn("State"u8,     TableColumnFlags.WidthFixed, 85 * Im.Style.GlobalScale);
         table.SetupColumn("Priority"u8,  TableColumnFlags.WidthFixed, Im.Font.CalculateSize("Priority"u8).X + Im.Style.FrameHeightWithSpacing);
-        table.SetupColumn("##Options"u8, TableColumnFlags.WidthFixed, Im.Font.CalculateSize("Applym"u8).X);
+        table.SetupColumn("##Options"u8, TableColumnFlags.WidthFixed,
+            Im.Font.CalculateSize("Applym"u8).X * Im.Style.FrameHeight + Im.Style.ItemInnerSpacing.X);
         table.HeaderRow();
 
         ModIdentifier?                                   removedMod = null;
@@ -156,7 +163,7 @@ public sealed class ModAssociationsTab(PenumbraSubscriber penumbra, DesignFileSy
                 Im.Text($"Using temporary settings made by {source}.");
             Im.Separator();
             var namesDifferent = mod.Name != mod.Identifier;
-            Im.Dummy(300 * Im.Style.GlobalScale);
+            Im.ScaledDummy(300);
             using (Im.Group())
             {
                 if (namesDifferent)
@@ -203,6 +210,88 @@ public sealed class ModAssociationsTab(PenumbraSubscriber penumbra, DesignFileSy
         }
 
         DrawApplicationTooltip(modIndex, settings);
+        Im.Line.SameInner();
+        if (ImEx.Icon.Button(LunaStyle.EditIcon, "Open a popup to edit the settings of this preset."u8))
+            Im.Popup.Open("##popup"u8);
+
+        if (DrawPopup(mod, settings, out var updatedMod2))
+            updatedMod = updatedMod2;
+    }
+
+    private bool DrawPopup(ModIdentifier mod, SettingPresetData settings, out (ModIdentifier, SettingPresetData)? updatedMod)
+    {
+        updatedMod = null;
+        using var popup = Im.Popup.Begin("##popup"u8);
+        if (!popup)
+            return false;
+
+        var                        size         = ImEx.ScaledVectorX(400f, Im.Style.FrameHeight);
+        var                        optionSize   = size.AddX(-Im.Style.IndentSpacing);
+        using var                  modReference = penumbra.Mods.GetByName(mod);
+        using var                  id           = Im.Id.Empty();
+        Action<SettingPresetData>? update       = null;
+        ImEx.TextCentered($"Editing {mod.Name} Settings{(modReference is null ? " (Not Found)" : string.Empty)}");
+        foreach (var (idx, (group, groupSettings)) in settings.Settings.Index())
+        {
+            id.Push(idx);
+            var (actualGroupIndex, actualGroupId) = modReference?.FindGroup(group) ?? (-1, default);
+            LunaStyle.DrawSeparator();
+
+            if (SettingPresetData.DrawGroup(size, idx, group, actualGroupIndex >= 0 ? actualGroupId : null, groupSettings.DisableAllUnknown,
+                    out var newGroup, out var disable))
+                update = s =>
+                {
+                    if (disable.HasValue)
+                        s.SetDisableUnknownOptions(group, disable.Value);
+                    else if (newGroup.HasValue)
+                        s.Settings.ReplaceGroupIdentifier(group, newGroup.Value);
+                    else
+                        s.Settings.Remove(group);
+                };
+
+            using var indent = Im.Indent();
+            foreach (var (optionIndex, (optionIdentifier, optionState)) in groupSettings.Options.Index())
+            {
+                id.Push(optionIndex);
+                var (actualOptionIndex, actualOptionIdentifier) = modReference?.FindOption(optionIdentifier, actualGroupIndex) ?? (-1, default);
+
+                Im.Cursor.Y += Im.Style.ItemSpacing.Y;
+                if (SettingPresetData.DrawOption(optionSize, optionIndex, optionIdentifier,
+                        actualOptionIndex >= 0 ? actualOptionIdentifier : null,
+                        (OptionState)optionState, out var changedOption, out var newState))
+                    update = s =>
+                    {
+                        if (newState.HasValue)
+                            groupSettings.Options[optionIdentifier] = (byte)newState;
+                        else if (changedOption.HasValue)
+                            s.Settings.ReplaceOptionIdentifiers(optionIdentifier, changedOption.Value, group);
+                        else
+                            groupSettings.Options.Remove(optionIdentifier);
+                    };
+
+                Im.Cursor.Y += Im.Style.ItemSpacing.Y;
+                var currentNewOption = new ModObjectIdentifier(_optionIdentifierInput, _optionNameInput);
+                if (SettingPresetData.DrawAddOption(optionSize, groupSettings, ref _optionIdentifierInput, ref _optionNameInput,
+                        out var newOption, modReference?.FindOption(currentNewOption, actualGroupIndex).Option))
+                    update = _ => groupSettings.Options.Add(newOption, (byte)OptionState.Ignored);
+
+                id.Pop();
+            }
+
+            id.Pop();
+        }
+
+        var currentNewGroup = new ModObjectIdentifier(_groupIdentifierInput, _groupNameInput);
+        if (settings.DrawAddGroup(size, ref _groupIdentifierInput, ref _groupNameInput, out var newGroupIdentifier,
+                modReference?.FindGroup(currentNewGroup).Group))
+            update = s => s.AddGroup(newGroupIdentifier);
+
+        if (update is null)
+            return false;
+
+        update.Invoke(settings);
+        updatedMod = (mod, settings);
+        return true;
     }
 
     private void DrawApplicationTooltip(int modIndex, in SettingPresetData settings)
