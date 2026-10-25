@@ -108,7 +108,8 @@ public sealed class ModAssociationsTab(PenumbraSubscriber penumbra, DesignFileSy
         table.SetupColumn("Mod Name"u8,  TableColumnFlags.WidthStretch);
         table.SetupColumn("State"u8,     TableColumnFlags.WidthFixed, 85 * Im.Style.GlobalScale);
         table.SetupColumn("Priority"u8,  TableColumnFlags.WidthFixed, Im.Font.CalculateSize("Priority"u8).X + Im.Style.FrameHeightWithSpacing);
-        table.SetupColumn("##Options"u8, TableColumnFlags.WidthFixed, Im.Font.CalculateSize("Applym"u8).X + Im.Style.FrameHeight + Im.Style.ItemInnerSpacing.X);
+        table.SetupColumn("##Options"u8, TableColumnFlags.WidthFixed,
+            Im.Font.CalculateSize("Applym"u8).X + Im.Style.FrameHeight + Im.Style.ItemInnerSpacing.X);
         table.HeaderRow();
 
         ModIdentifier?                                   removedMod = null;
@@ -220,16 +221,22 @@ public sealed class ModAssociationsTab(PenumbraSubscriber penumbra, DesignFileSy
     private bool DrawPopup(ModIdentifier mod, SettingPresetData settings, out (ModIdentifier, SettingPresetData)? updatedMod)
     {
         updatedMod = null;
-        using var popup = Im.Popup.Begin("##popup"u8);
+        Im.Window.SetNextSizeConstraints(ImEx.ScaledVector(200), ImEx.ScaledVector(1000, 640));
+        using var popup = Im.Popup.Begin("##popup"u8, WindowFlags.AlwaysAutoResize);
         if (!popup)
             return false;
 
+        var                        indent       = Im.Style.FrameHeight + Im.Style.ItemInnerSpacing.X;
         var                        size         = ImEx.ScaledVectorX(400f, Im.Style.FrameHeight);
-        var                        optionSize   = size.AddX(-Im.Style.IndentSpacing);
+        var                        optionSize   = size.AddX(-indent);
         using var                  modReference = penumbra.Mods.GetByName(mod);
         using var                  id           = Im.Id.Empty();
         Action<SettingPresetData>? update       = null;
         ImEx.TextCentered($"Editing {mod.Name} Settings{(modReference is null ? " (Not Found)" : string.Empty)}");
+        Im.Line.Same(Im.ContentRegion.Maximum.X - Im.Style.FrameHeight);
+        if (PenumbraOptionDisplay.DrawConfigButton(config.Ephemeral.PenumbraOptionDisplay, out var newDisplay))
+            config.Ephemeral.PenumbraOptionDisplay = newDisplay;
+
         foreach (var (idx, (group, groupSettings)) in settings.Settings.Index())
         {
             id.Push(idx);
@@ -237,7 +244,7 @@ public sealed class ModAssociationsTab(PenumbraSubscriber penumbra, DesignFileSy
             LunaStyle.DrawSeparator();
 
             if (SettingPresetData.DrawGroup(size, idx, group, actualGroupIndex >= 0 ? actualGroupId : null, groupSettings.DisableAllUnknown,
-                    out var newGroup, out var disable))
+                    out var newGroup, out var disable, config.Ephemeral.PenumbraOptionDisplay))
                 update = s =>
                 {
                     if (disable.HasValue)
@@ -248,16 +255,20 @@ public sealed class ModAssociationsTab(PenumbraSubscriber penumbra, DesignFileSy
                         s.Settings.Remove(group);
                 };
 
-            using var indent = Im.Indent();
+            using var i = Im.Indent(indent);
             foreach (var (optionIndex, (optionIdentifier, optionState)) in groupSettings.Options.Index())
             {
                 id.Push(optionIndex);
                 var (actualOptionIndex, actualOptionIdentifier) = modReference?.FindOption(optionIdentifier, actualGroupIndex) ?? (-1, default);
 
-                Im.Cursor.Y += Im.Style.ItemSpacing.Y;
+                if (!config.Ephemeral.PenumbraOptionDisplay.CheckAll(PenumbraOptionDisplay.HideIndex
+                      | PenumbraOptionDisplay.HideIds
+                      | PenumbraOptionDisplay.HideResolve))
+                    Im.Cursor.Y += Im.Style.ItemSpacing.Y;
+
                 if (SettingPresetData.DrawOption(optionSize, optionIndex, optionIdentifier,
                         actualOptionIndex >= 0 ? actualOptionIdentifier : null,
-                        (OptionState)optionState, out var changedOption, out var newState))
+                        (OptionState)optionState, out var changedOption, out var newState, config.Ephemeral.PenumbraOptionDisplay))
                     update = s =>
                     {
                         if (newState.HasValue)
@@ -268,21 +279,25 @@ public sealed class ModAssociationsTab(PenumbraSubscriber penumbra, DesignFileSy
                             groupSettings.Options.Remove(optionIdentifier);
                     };
 
-                Im.Cursor.Y += Im.Style.ItemSpacing.Y;
-                var currentNewOption = new ModObjectIdentifier(_optionIdentifierInput, _optionNameInput);
-                if (SettingPresetData.DrawAddOption(optionSize, groupSettings, ref _optionIdentifierInput, ref _optionNameInput,
-                        out var newOption, modReference?.FindOption(currentNewOption, actualGroupIndex).Option))
-                    update = _ => groupSettings.Options.Add(newOption, (byte)OptionState.Ignored);
-
                 id.Pop();
             }
+
+            if (!config.Ephemeral.PenumbraOptionDisplay.HasFlag(PenumbraOptionDisplay.HideAddOption))
+                Im.Cursor.Y += Im.Style.ItemSpacing.Y;
+            var currentNewOption = new ModObjectIdentifier(_optionIdentifierInput, _optionNameInput);
+            if (SettingPresetData.DrawAddOption(optionSize, groupSettings, ref _optionIdentifierInput, ref _optionNameInput,
+                    out var newOption, modReference?.FindOption(currentNewOption, actualGroupIndex).Option,
+                    config.Ephemeral.PenumbraOptionDisplay))
+                update = _ => groupSettings.Options.Add(newOption, (byte)OptionState.Ignored);
 
             id.Pop();
         }
 
+        if (!config.Ephemeral.PenumbraOptionDisplay.HasFlag(PenumbraOptionDisplay.HideAddOption))
+            LunaStyle.DrawSeparator();
         var currentNewGroup = new ModObjectIdentifier(_groupIdentifierInput, _groupNameInput);
         if (settings.DrawAddGroup(size, ref _groupIdentifierInput, ref _groupNameInput, out var newGroupIdentifier,
-                modReference?.FindGroup(currentNewGroup).Group))
+                modReference?.FindGroup(currentNewGroup).Group, config.Ephemeral.PenumbraOptionDisplay))
             update = s => s.AddGroup(newGroupIdentifier);
 
         if (update is null)
